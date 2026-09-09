@@ -43,8 +43,6 @@ Each becomes its own named target with its own restic repo and its own passphras
 - **"What am I backing up?"** → `scripts/backup.sh list` shows every registered folder and where it lives.
 - Adding a folder later is the same one-liner as the first: "back up my ~/Projects/NewThing folder too" — no need to touch anything already set up.
 
-This is also how the author actually runs it day to day: five separate folders (personal finances, health records, an estate-planning project, a side-business project, and a general task-tracking workspace), one shared Proton Drive remote, one weekly `systemd --user` timer covering all of them with `run --all`.
-
 ## Why trust this with sensitive data?
 
 - The passphrase protecting each backup never leaves your machine and is never displayed by the tooling — you copy it into your own password manager.
