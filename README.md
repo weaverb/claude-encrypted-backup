@@ -1,3 +1,8 @@
+
+<a href="https://buymeacoffee.com/weaverb" target="_blank">
+  <img src=".github/imgs/blue-button.png" alt="Buy me a coffee" height="35">
+</a>
+
 # Encrypted Backup — a Claude Code skill
 
 A [Claude Code](https://claude.com/claude-code) skill (packaged as a plugin) that sets up real, encrypted 3-2-1 disaster-recovery backups for sensitive personal directories — financial records, health records, estate/legal documents, or anything else worth protecting — **without any plaintext ever leaving your machine**.
