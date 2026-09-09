@@ -48,6 +48,8 @@ Each becomes its own named target with its own restic repo and its own passphras
 - **"What am I backing up?"** → `scripts/backup.sh list` shows every registered folder and where it lives.
 - Adding a folder later is the same one-liner as the first: "back up my ~/Projects/NewThing folder too" — no need to touch anything already set up.
 
+**A note on scheduled automation and symlinked installs:** if you install this skill by symlinking `skills/encrypted-backup/` (Option 2 above, or a plugin manager that does the same), editing the skill itself — `SKILL.md`, `backup.sh` — stays in sync with the repo automatically, since it's the same file either way. The OS scheduler unit (`scripts/schedule/linux-systemd/`, `macos-launchd/`, or `windows-task-scheduler/`) is different: that's a one-time template you copy and customize with your own paths and environment variables (e.g. `ENCRYPTED_BACKUP_RCLONE_REMOTES`), so it lives outside the symlink. Pulling a repo update that changes those templates won't touch your already-installed scheduled task — re-copy it yourself if you want to pick up the change.
+
 ## Why trust this with sensitive data?
 
 - The passphrase protecting each backup never leaves your machine and is never displayed by the tooling — you copy it into your own password manager.
