@@ -50,6 +50,21 @@ Each becomes its own named target with its own restic repo and its own passphras
 
 **A note on scheduled automation and symlinked installs:** if you install this skill by symlinking `skills/encrypted-backup/` (Option 2 above, or a plugin manager that does the same), editing the skill itself — `SKILL.md`, `backup.sh` — stays in sync with the repo automatically, since it's the same file either way. The OS scheduler unit (`scripts/schedule/linux-systemd/`, `macos-launchd/`, or `windows-task-scheduler/`) is different: that's a one-time template you copy and customize with your own paths and environment variables (e.g. `ENCRYPTED_BACKUP_RCLONE_REMOTES`), so it lives outside the symlink. Pulling a repo update that changes those templates won't touch your already-installed scheduled task — re-copy it yourself if you want to pick up the change.
 
+## What this touches on your machine
+
+A backup tool necessarily reads and writes outside its own plugin directory — that's the whole point. There's no manifest field for declaring this (the [Claude Code plugin schema](https://code.claude.com/docs/en/plugins-reference) doesn't have one), so here's the complete, exact list instead:
+
+| Path | What's there | When |
+|---|---|---|
+| Whichever folder(s) you register | `git init` (local only, no remote) added if not already a repo | `setup`, then read on every `run` |
+| `~/Backups/registry.json` | which folders are registered, and where their repo/passphrase files live | `setup`, `run`, `status`, `list` |
+| `~/Backups/restic-repos/<name>/` | the actual encrypted, deduplicated backup data | `setup`, `run` |
+| `~/Backups/logs/<name>.log` | plain-text run logs (timestamps, file counts — never file contents or the passphrase) | `run` |
+| `~/.config/claude-encrypted-backup/secrets/<name>.pass` | the restic passphrase for that target, `chmod 600` | generated once at `setup`, read on every `run`/`status`/`restore-test` |
+| Your configured local-mirror drive and rclone remote(s) | a mirror of the same encrypted repo — never plaintext | `run`, if configured |
+
+Nothing outside this list. No network access except to whatever rclone remote you explicitly configure, and no reads/writes to any file you didn't register as a backup target.
+
 ## Why trust this with sensitive data?
 
 - The passphrase protecting each backup never leaves your machine and is never displayed by the tooling — you copy it into your own password manager.

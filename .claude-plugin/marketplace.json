@@ -13,7 +13,7 @@
     {
       "name": "encrypted-backup",
       "displayName": "Encrypted Backup",
-      "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories — local git history plus an encrypted restic repo mirrored to a second drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone backend). Linux, macOS, and Windows.",
+      "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories — local git history plus an encrypted restic repo mirrored to a second drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone backend). Linux, macOS, and Windows. By design, writes outside its own plugin directory — the user-chosen folder being backed up, ~/Backups, and ~/.config/claude-encrypted-backup — see the README's \"What this touches on your machine\" section for the exact list.",
       "version": "1.0.0",
       "author": {
         "name": "Bryan Weaver",

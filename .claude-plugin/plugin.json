@@ -1,6 +1,6 @@
 {
   "name": "encrypted-backup",
-  "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories (financial, health, legal, or other private records). Local git history plus an encrypted, deduplicated restic repo mirrored to a second local drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone-supported backend) — no plaintext ever leaves the machine. Works on Linux, macOS, and Windows (Git Bash or WSL).",
+  "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories (financial, health, legal, or other private records). Local git history plus an encrypted, deduplicated restic repo mirrored to a second local drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone-supported backend) — no plaintext ever leaves the machine. Works on Linux, macOS, and Windows (Git Bash or WSL). By design, this writes outside its own plugin directory: to the user-chosen folder being backed up, ~/Backups (snapshot repos, logs, registry), and ~/.config/claude-encrypted-backup (passphrases) — see the README's \"What this touches on your machine\" section for the complete, exact list.",
   "version": "1.0.0",
   "author": {
     "name": "Bryan Weaver",
