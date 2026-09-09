@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude.encrypted-backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <!-- EDIT THIS PATH to wherever backup.sh actually lives on your machine -->
+        <string>/CHANGE/ME/backup.sh</string>
+        <string>run</string>
+        <string>--all</string>
+    </array>
+
+    <!-- Weekly: Sunday (0) at 03:00 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/encrypted-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/encrypted-backup.err</string>
+
+    <!-- Don't run immediately on load; wait for the next scheduled time -->
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

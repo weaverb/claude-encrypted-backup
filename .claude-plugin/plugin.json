@@ -1,0 +1,21 @@
+{
+  "name": "encrypted-backup",
+  "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories (financial, health, legal, or other private records). Local git history plus an encrypted, deduplicated restic repo mirrored to a second local drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone-supported backend) — no plaintext ever leaves the machine. Works on Linux, macOS, and Windows (Git Bash or WSL).",
+  "version": "1.0.0",
+  "author": {
+    "name": "Bryan Weaver",
+    "url": "https://github.com/weaverb"
+  },
+  "homepage": "https://github.com/weaverb/claude-encrypted-backup",
+  "repository": "https://github.com/weaverb/claude-encrypted-backup",
+  "license": "MIT",
+  "keywords": [
+    "backup",
+    "encryption",
+    "disaster-recovery",
+    "privacy",
+    "restic",
+    "rclone"
+  ],
+  "skills": "./skills/"
+}

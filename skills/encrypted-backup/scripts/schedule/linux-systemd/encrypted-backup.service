@@ -1,0 +1,13 @@
+[Unit]
+Description=Encrypted Backup (3-2-1) run
+
+[Service]
+Type=oneshot
+# systemd --user services get a minimal PATH that often doesn't include
+# Homebrew/linuxbrew or other custom install locations for restic/rclone/jq.
+# Adjust this line to match where those tools actually resolve for you
+# (check with `command -v restic rclone jq`).
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:%h/.local/bin
+
+# EDIT THIS PATH to wherever backup.sh actually lives on your machine.
+ExecStart=%h/CHANGE/ME/backup.sh run --all

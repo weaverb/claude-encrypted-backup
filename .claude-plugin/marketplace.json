@@ -1,0 +1,36 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "weaverb-encrypted-backup",
+  "owner": {
+    "name": "Bryan Weaver",
+    "url": "https://github.com/weaverb"
+  },
+  "metadata": {
+    "description": "A single-plugin marketplace for the encrypted-backup skill — real, encrypted 3-2-1 disaster-recovery backups for sensitive personal directories, with no plaintext ever leaving the machine.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "encrypted-backup",
+      "displayName": "Encrypted Backup",
+      "description": "Set up, run, check, and restore an encrypted 3-2-1 backup for sensitive local directories — local git history plus an encrypted restic repo mirrored to a second drive and an offsite cloud remote (Google Drive, OneDrive, Proton Drive, or any rclone backend). Linux, macOS, and Windows.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Bryan Weaver",
+        "url": "https://github.com/weaverb"
+      },
+      "source": ".",
+      "category": "productivity",
+      "homepage": "https://github.com/weaverb/claude-encrypted-backup",
+      "license": "MIT",
+      "tags": [
+        "backup",
+        "encryption",
+        "privacy",
+        "disaster-recovery",
+        "restic",
+        "rclone"
+      ]
+    }
+  ]
+}
