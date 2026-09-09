@@ -30,6 +30,21 @@ Once installed, just ask Claude in a normal conversation:
 
 Claude will walk through the one-time prerequisites (installing `restic`/`rclone`/`jq`, configuring a cloud remote) as interactive steps you run yourself — see [`skills/encrypted-backup/SKILL.md`](skills/encrypted-backup/SKILL.md) for the full design, the exact commands, and how automation/scheduling works on each platform.
 
+## Backing up multiple folders
+
+This isn't limited to one directory — register as many as you want, each tracked and encrypted independently. A real-world setup might look like:
+
+> "Set up encrypted backups for ~/Documents/Taxes, ~/Documents/Medical, and ~/Documents/Legal"
+
+Each becomes its own named target with its own restic repo and its own passphrase, but they all share the same offsite remote(s) and local-mirror drive — you configure those once, not per folder. From then on:
+
+- **"Back up everything"** → `scripts/backup.sh run --all` snapshots every registered folder in one pass. This is what a weekly scheduled run (see [Scheduled automation](skills/encrypted-backup/SKILL.md#scheduled-automation)) should point at, so newly-added folders are picked up automatically without editing the schedule.
+- **"Is everything backed up?"** → `scripts/backup.sh status --all` reports the last snapshot time and offsite/local-mirror state for every target at a glance.
+- **"What am I backing up?"** → `scripts/backup.sh list` shows every registered folder and where it lives.
+- Adding a folder later is the same one-liner as the first: "back up my ~/Projects/NewThing folder too" — no need to touch anything already set up.
+
+This is also how the author actually runs it day to day: five separate folders (personal finances, health records, an estate-planning project, a side-business project, and a general task-tracking workspace), one shared Proton Drive remote, one weekly `systemd --user` timer covering all of them with `run --all`.
+
 ## Why trust this with sensitive data?
 
 - The passphrase protecting each backup never leaves your machine and is never displayed by the tooling — you copy it into your own password manager.
