@@ -18,7 +18,20 @@
 #
 # Subcommands:
 #   check                             report detected OS, tool/remote status
-#   setup <target_dir> [name]        register + initialize a new target
+#   setup <target_dir> [name] [options]
+#                                     register + initialize a new target.
+#                                     Options (stored per target, all
+#                                     optional; defaults suit document
+#                                     folders):
+#                                       --include-git     back up .git too
+#                                                         (for repos whose
+#                                                         history exists
+#                                                         nowhere else)
+#                                       --no-auto-commit  don't commit
+#                                                         pending changes
+#                                                         before a backup
+#                                       --exclude PATTERN extra restic
+#                                                         exclude (repeatable)
 #   run   [name|--all]               back up one or all registered targets
 #   status [name|--all]              show registry + last-snapshot info
 #   restore-test <name> <dest_dir>   restore latest snapshot into dest_dir
@@ -237,8 +250,21 @@ cmd_check() {
 
 cmd_setup() {
   require_tools
-  local target="$1"
-  local name="${2:-}"
+  [ $# -ge 1 ] || die "Usage: backup.sh setup <target_dir> [name] [--include-git] [--no-auto-commit] [--exclude PATTERN]..."
+  local target="$1"; shift
+  local name=""
+  local include_git=false auto_commit=true
+  local excludes=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --include-git)    include_git=true ;;
+      --no-auto-commit) auto_commit=false ;;
+      --exclude)        [ $# -ge 2 ] || die "--exclude needs a pattern"; excludes+=("$2"); shift ;;
+      --*)              die "Unknown setup option: $1" ;;
+      *)                [ -z "$name" ] || die "Unexpected argument: $1"; name="$1" ;;
+    esac
+    shift
+  done
   [ -d "$target" ] || die "Directory not found: $target"
   target="$(cd "$target" && pwd)"
   name="${name:-$(basename "$target" | tr '[:upper:] ' '[:lower:]-')}"
@@ -284,14 +310,29 @@ cmd_setup() {
   # 3. Register (remotes are a global config concern — see
   #    ENCRYPTED_BACKUP_RCLONE_REMOTES — not baked in per-target, so
   #    adding/changing offsite remotes later needs no re-setup).
+  #    Per-target options are only written when they differ from the
+  #    defaults, so existing registry entries and document-folder targets
+  #    look exactly as they always have.
+  local excludes_json='[]'
+  if [ "${#excludes[@]}" -gt 0 ]; then
+    excludes_json="$(printf '%s\n' "${excludes[@]}" | jq -R . | jq -s .)"
+  fi
   tmp="$(mktemp)"
   jq --arg name "$name" --arg target "$target" --arg repo "$repo" \
      --arg passfile "$passfile" \
-     '. + [{name:$name, target:$target, repo:$repo, password_file:$passfile}]' \
+     --argjson include_git "$include_git" --argjson auto_commit "$auto_commit" \
+     --argjson excludes "$excludes_json" \
+     '. + [{name:$name, target:$target, repo:$repo, password_file:$passfile}
+           + (if $include_git then {include_git:true} else {} end)
+           + (if $auto_commit then {} else {auto_commit:false} end)
+           + (if ($excludes | length) > 0 then {excludes:$excludes} else {} end)]' \
      "$REGISTRY" > "$tmp"
   mv "$tmp" "$REGISTRY"
 
   echo "==> Registered. Run 'backup.sh run $name' to take the first snapshot."
+  [ "$include_git" = true ] && echo "    option: .git is included in snapshots"
+  [ "$auto_commit" = false ] && echo "    option: pending git changes are NOT auto-committed before backups"
+  for e in "${excludes[@]}"; do echo "    option: exclude $e"; done
   echo "==> IMPORTANT: copy the passphrase into your password manager now:"
   echo "      cat $passfile"
   echo "    (run that yourself — this script won't print it)"
@@ -311,15 +352,35 @@ backup_one() {
   repo="$(jq -r '.repo' <<<"$entry")"
   passfile="$(jq -r '.password_file' <<<"$entry")"
   local log="$LOGS_ROOT/$name.log"
+  # Optional per-target options (see setup). `has()` rather than jq's `//`,
+  # which would treat an explicit false as missing.
+  local include_git auto_commit
+  include_git="$(jq -r 'if has("include_git") then .include_git else false end' <<<"$entry")"
+  auto_commit="$(jq -r 'if has("auto_commit") then .auto_commit else true end' <<<"$entry")"
+  local restic_excludes=()
+  [ "$include_git" = true ] || restic_excludes+=(--exclude ".git")
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] && restic_excludes+=(--exclude "$pattern")
+  done < <(jq -r '.excludes // [] | .[]' <<<"$entry")
 
   {
     echo "===== $(date -Is 2>/dev/null || date) backup start: $name (OS: $OS_KIND) ====="
 
-    if git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Each step fails explicitly (`|| fail`) instead of relying on set -e:
+    # cmd_run calls backup_one from an `||` list, where bash disables
+    # errexit for everything inside it.
+    fail() {
+      echo "===== $(date -Is 2>/dev/null || date) backup FAILED: $name — $* ====="
+      exit 1   # leaves the { } | tee subshell; pipefail carries the status out
+    }
+
+    if [ "$auto_commit" != true ]; then
+      echo "git: auto-commit disabled for this target"
+    elif git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       if [ -n "$(git -C "$target" status --porcelain)" ]; then
-        git -C "$target" add -A
+        git -C "$target" add -A || fail "git add"
         git -C "$target" -c user.email="backup@localhost" -c user.name="encrypted-backup" \
-          commit -q -m "Backup snapshot $(date -Is 2>/dev/null || date)"
+          commit -q -m "Backup snapshot $(date -Is 2>/dev/null || date)" || fail "git commit"
         echo "git: committed local changes"
       else
         echo "git: no changes to commit"
@@ -328,43 +389,73 @@ backup_one() {
 
     echo "restic: backing up $target -> $repo"
     restic -r "$repo" --password-file "$passfile" backup "$target" \
-      --exclude ".git" --tag auto
+      ${restic_excludes[@]+"${restic_excludes[@]}"} --tag auto || fail "restic backup"
 
     echo "restic: pruning old snapshots (keep 12 weekly / 12 monthly / all last 30 days)"
     restic -r "$repo" --password-file "$passfile" forget \
-      --keep-daily 30 --keep-weekly 12 --keep-monthly 12 --prune >/dev/null
+      --keep-daily 30 --keep-weekly 12 --keep-monthly 12 --prune >/dev/null || fail "restic forget/prune"
 
+    local failed_mirrors=()
     if [ -n "$RCLONE_REMOTES" ]; then
       for remote in $RCLONE_REMOTES; do
-        dest="$remote:$RCLONE_BASE_PATH/$name"
-        echo "rclone: mirroring $repo -> $dest"
-        if ! rclone sync "$repo" "$dest" --fast-list; then
-          echo "WARNING: rclone sync to '$remote' failed — check 'rclone listremotes' and connectivity."
-        fi
+        mirror_repo "$repo" "$remote:$RCLONE_BASE_PATH/$name" "$remote" || failed_mirrors+=("$remote")
       done
     else
       echo "offsite mirror: skipped — ENCRYPTED_BACKUP_RCLONE_REMOTES is not set"
     fi
 
     if [ -n "$LOCAL_MIRROR_MOUNT" ] && is_mounted "$LOCAL_MIRROR_MOUNT"; then
-      local_dest="$LOCAL_MIRROR_MOUNT/$LOCAL_MIRROR_SUBDIR/$name"
-      echo "rclone: mirroring $repo -> $local_dest (local drive)"
-      rclone sync "$repo" "$local_dest" --fast-list
+      mirror_repo "$repo" "$LOCAL_MIRROR_MOUNT/$LOCAL_MIRROR_SUBDIR/$name" "local drive" || failed_mirrors+=("local drive")
     else
       echo "local mirror: skipped (not configured, or drive not connected)"
     fi
 
+    if [ "${#failed_mirrors[@]}" -gt 0 ]; then
+      fail "local snapshot saved, but mirror(s) not verified: ${failed_mirrors[*]}"
+    fi
     echo "===== $(date -Is 2>/dev/null || date) backup complete: $name ====="
-  } | tee -a "$log"
+  } 2>&1 | tee -a "$log"
+}
+
+# Mirror a restic repo to one destination and prove it arrived.
+#
+# rclone's exit status alone isn't trusted: it logs retried errors (e.g. a
+# transient Proton "401 Invalid access token" it then recovers from) yet
+# still exits 0, and could in principle exit 0 after a partial transfer.
+# So every sync is followed by `rclone check --one-way`, which fails unless
+# every file in the local repo exists at the destination with the same
+# size (restic pack files are content-addressed and immutable, so size is
+# a sufficient comparison and avoids re-hashing everything remotely).
+mirror_repo() {
+  local repo="$1" dest="$2" label="$3"
+  echo "rclone: mirroring $repo -> $dest ($label)"
+  if ! rclone sync "$repo" "$dest" --fast-list; then
+    echo "ERROR: rclone sync to '$label' exited non-zero — check 'rclone listremotes', credentials, and connectivity."
+    return 1
+  fi
+  echo "rclone: verifying $dest ($label)"
+  if ! rclone check "$repo" "$dest" --one-way --size-only --fast-list; then
+    echo "ERROR: '$label' does not match the local repo after sync — the mirror is incomplete."
+    return 1
+  fi
+  echo "rclone: $label verified"
 }
 
 cmd_run() {
   require_tools
   local arg="${1:---all}"
-  if [ "$arg" = "--all" ]; then
-    for n in $(all_names); do backup_one "$n"; done
-  else
+  if [ "$arg" != "--all" ]; then
     backup_one "$arg"
+    return
+  fi
+  # One target failing must not stop the others from being backed up.
+  local failed=()
+  for n in $(all_names); do
+    backup_one "$n" || failed+=("$n")
+  done
+  if [ "${#failed[@]}" -gt 0 ]; then
+    echo "ERROR: ${#failed[@]} target(s) did not complete cleanly: ${failed[*]} (see $LOGS_ROOT/<name>.log)" >&2
+    return 1
   fi
 }
 
@@ -441,7 +532,8 @@ case "${1:-}" in
 Usage: backup.sh <check|setup|run|status|restore-test|list> [args]
 
   check                             report detected OS, tool/remote status
-  setup <target_dir> [name]        register + initialize a new target
+  setup <target_dir> [name] [--include-git] [--no-auto-commit] [--exclude PATTERN]...
+                                    register + initialize a new target
   run   [name|--all]                back up one or all registered targets (default: --all)
   status [name|--all]               show last-snapshot info (default: --all)
   restore-test <name> <dest_dir>    restore latest snapshot into dest_dir

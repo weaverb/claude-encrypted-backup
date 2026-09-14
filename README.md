@@ -48,6 +48,29 @@ Each becomes its own named target with its own restic repo and its own passphras
 - **"What am I backing up?"** → `scripts/backup.sh list` shows every registered folder and where it lives.
 - Adding a folder later is the same one-liner as the first: "back up my ~/Projects/NewThing folder too" — no need to touch anything already set up.
 
+## Backing up a code repository
+
+The defaults are tuned for document folders: every `run` commits pending changes to the folder's local git repo first, and `.git` is left out of the restic snapshot, since the local git history is treated as its own copy. For a code repository — especially one with no remote, where `.git` is the only copy of the history — both are wrong. Auto-commits would mix half-finished work into the project history, and leaving out `.git` would lose the commit history and any Git LFS objects.
+
+`setup` takes per-target options for this, stored in that target's registry entry:
+
+```
+scripts/backup.sh setup ~/code/my-game --include-git --no-auto-commit \
+  --exclude game/.godot --exclude game/builds
+```
+
+- `--include-git` — snapshot `.git` too (commit history plus `.git/lfs` objects)
+- `--no-auto-commit` — never commit on your behalf; you commit when you're ready
+- `--exclude PATTERN` (repeatable) — extra restic excludes, e.g. regenerable build caches
+
+Targets registered without these options behave exactly as before.
+
+## Mirror verification
+
+After each mirror (every offsite remote and the local drive), `run` verifies the copy with `rclone check --one-way --size-only`: every file in the local restic repo must exist at the destination with the same size. rclone's exit status alone isn't enough — it can log errors it retried and recovered from (and still exit 0), so the check is what confirms the mirror is complete.
+
+If a mirror fails or doesn't match, the run ends with `backup FAILED: <name> — local snapshot saved, but mirror(s) not verified: <which>` and exits non-zero, so a scheduled run shows up as failed. `run --all` still backs up every remaining target before reporting which ones failed. rclone, restic, and git error output is written to `~/Backups/logs/<name>.log` alongside the normal output.
+
 **A note on scheduled automation and symlinked installs:** if you install this skill by symlinking `skills/encrypted-backup/` (Option 2 above, or a plugin manager that does the same), editing the skill itself — `SKILL.md`, `backup.sh` — stays in sync with the repo automatically, since it's the same file either way. The OS scheduler unit (`scripts/schedule/linux-systemd/`, `macos-launchd/`, or `windows-task-scheduler/`) is different: that's a one-time template you copy and customize with your own paths and environment variables (e.g. `ENCRYPTED_BACKUP_RCLONE_REMOTES`), so it lives outside the symlink. Pulling a repo update that changes those templates won't touch your already-installed scheduled task — re-copy it yourself if you want to pick up the change.
 
 ## What this touches on your machine
@@ -56,10 +79,10 @@ A backup tool necessarily reads and writes outside its own plugin directory — 
 
 | Path | What's there | When |
 |---|---|---|
-| Whichever folder(s) you register | `git init` (local only, no remote) added if not already a repo | `setup`, then read on every `run` |
-| `~/Backups/registry.json` | which folders are registered, and where their repo/passphrase files live | `setup`, `run`, `status`, `list` |
+| Whichever folder(s) you register | `git init` (local only, no remote) added if not already a repo; pending changes committed before each backup unless the target was set up with `--no-auto-commit` | `setup`, then read on every `run` |
+| `~/Backups/registry.json` | which folders are registered, where their repo/passphrase files live, and any per-target options | `setup`, `run`, `status`, `list` |
 | `~/Backups/restic-repos/<name>/` | the actual encrypted, deduplicated backup data | `setup`, `run` |
-| `~/Backups/logs/<name>.log` | plain-text run logs (timestamps, file counts — never file contents or the passphrase) | `run` |
+| `~/Backups/logs/<name>.log` | plain-text run logs, including tool error output (timestamps, file counts, errors — never file contents or the passphrase) | `run` |
 | `~/.config/claude-encrypted-backup/secrets/<name>.pass` | the restic passphrase for that target, `chmod 600` | generated once at `setup`, read on every `run`/`status`/`restore-test` |
 | Your configured local-mirror drive and rclone remote(s) | a mirror of the same encrypted repo — never plaintext | `run`, if configured |
 
