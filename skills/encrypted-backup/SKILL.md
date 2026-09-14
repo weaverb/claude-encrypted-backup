@@ -68,7 +68,7 @@ All setup/run/status/restore logic lives in `scripts/backup.sh` — read it once
 
 ```
 scripts/backup.sh check                                # report OS, tools, and remote/drive status
-scripts/backup.sh setup <target_dir> [name]             # register + init a new target
+scripts/backup.sh setup <target_dir> [name] [options]   # register + init a new target (options below)
 scripts/backup.sh run [name|--all]                      # back up one or all targets (default: --all)
 scripts/backup.sh status [name|--all]                   # show last-snapshot time per target
 scripts/backup.sh restore-test <name> <dest_dir>        # restore latest snapshot into dest_dir
@@ -95,9 +95,20 @@ State (outside any target dir, so nothing backs itself up):
 4. `scripts/backup.sh run <name>` to take the first snapshot and push it offsite.
 5. `scripts/backup.sh restore-test <name> <scratch_dir>` once, into a throwaway directory, and spot-check the restored files against the original — an untested backup is not a backup. Note: restic restores under the *full absolute source path*, so the restored files land at `<scratch_dir>/<original absolute path>`, not directly in `<scratch_dir>` — e.g. `diff -rq <original> <scratch_dir><original> --exclude=.git`.
 
+### Code repositories (per-target options)
+
+The defaults suit document folders: pending changes are auto-committed before each backup, and `.git` is excluded from snapshots. Both are wrong for a code repo, especially one with no git remote: auto-commits pollute project history, and excluding `.git` loses the commit history and any Git LFS objects. `setup` accepts per-target options, stored in the registry entry, that change this for one target only:
+
+- `--include-git`: snapshot `.git` as well (history plus `.git/lfs` objects)
+- `--no-auto-commit`: never commit on the user's behalf
+- `--exclude PATTERN` (repeatable): extra restic excludes, e.g. regenerable build caches
+
+Example: `scripts/backup.sh setup ~/code/my-game --include-git --no-auto-commit --exclude game/.godot --exclude game/builds`. Entries without these fields keep the default behavior.
+
 ## Routine use
 
 - Manual run: `scripts/backup.sh run --all` (or a single name).
+- Reading a run's result: every mirror is verified with `rclone check` after syncing. Trust the final line: `backup complete: <name>` means the local snapshot and every configured mirror are confirmed; `backup FAILED: <name> — ...` (with a non-zero exit) names the failed step or unverified mirror. Stray rclone `ERROR`/`NOTICE` lines above a `backup complete` are retries rclone recovered from (e.g. a transient Proton `401 Invalid access token`), not failures. With `--all`, a failing target doesn't stop the rest; the run ends with a summary of the targets that failed.
 - Checking status: `scripts/backup.sh status --all` reports the last snapshot time and drive/remote mirror state per target — use this if the user asks "is my backup current?"
 - When the user adds a new sensitive directory later, just repeat "Adding a new target directory" above.
 
